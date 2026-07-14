@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 parse_yrbs.py
 
@@ -38,7 +39,12 @@ def load_pipe_table(path):
 def weighted_rate(sub, col, roi_values):
 # YRBS uses complex survey sampling where different respondents represent different numbers of students. 
 # A 12th grader's response might "count" more than a 9th grader's because of the sampling design.
-# Accounts for the fact that some students represent more people than others.
+# Accounts for the fact that some students represent more people than others. 
+# A 12th grader might represent 50 students, while a 9th grader represents 30 students
+
+#Survey Question	                        Column	ROI Values  Meaning
+#"Did you seriously consider suicide?"	    q27	    [1]	        "Yes"
+#"How many times did you attempt suicide?"	q29	    [2,3,4,5]	"1 or more times"
 
 # Remove rows with missing data in either the response column or weight
     valid = sub.dropna(subset=[col, "weight"])
@@ -60,6 +66,14 @@ def weighted_rate_by(df, col, roi_values, group_col, group_map):
     return out
 
 def conditional_pair(df, outcome_col, outcome_roi, condition_col, condition_roi):
+# There is dependency between variables,
+# If we sample independently:
+# P(sadness) = 0.40
+# P(ideation | no sadness) = 0.04  # Very low without sadness
+# P(attempt  | no ideation) = 0.01  # Extremely low without ideation
+# But if we just flip independent coins, we'd get unrealistic combinations:
+# Students with suicide attempts but no sadness (almost never happens in reality)
+# Students with suicide plans but no ideation (contradictory)
 # Calculates conditional probability: "What's the rate of outcome X given that condition Y is true/false?"
 
     # Subset where condition is TRUE
@@ -77,18 +91,17 @@ def conditional_pair(df, outcome_col, outcome_roi, condition_col, condition_roi)
 
 def conditional_pair_by_sex(df, outcome_col, outcome_roi, condition_col, condition_roi,
                              sex_col="q2", sex_map=None):
-    """
-    Same as conditional_pair, but computed separately within each sex subgroup
-    instead of pooled across the whole sample. This matters because the
-    dependency-chain conditional rates (e.g. P(ideation | sad)) may not be
-    identical across sexes -- pooling silently assumes they are.
+    
+# Same as conditional_pair, but computed separately within each sex subgroup.
+# This matters because the dependency-chain conditional rates (e.g. P(ideation | sad)) 
+# may not be identical across sexes.
 
-    Returns {"overall": {...}, "female": {...}, "male": {...}}, where each
-    value has the same shape as conditional_pair's output (as a dict).
-    If a sex subgroup has too few rows for a stable estimate (n < min_n),
-    that subgroup falls back to "overall" rather than reporting a noisy
-    small-sample rate silently.
-    """
+# Returns {"overall": {...}, "female": {...}, "male": {...}}, where each
+# value has the same shape as conditional_pair's output (as a dict).
+# If a sex subgroup has too few rows for a stable estimate (n < min_n),
+# that subgroup falls back to "overall" rather than reporting a noisy
+# small-sample rate silently.
+  
     if sex_map is None:
         sex_map = {1: "female", 2: "male"}
 
@@ -150,7 +163,7 @@ def main():
 
     SEX_MAP = {1: "female", 2: "male"}
 
-    # --- Sanity check against known published national numbers ---
+    # Sanity check against known published national numbers 
     print("=== SANITY CHECK vs published 2023 YRBS national figures ===")
     print(f"Sad/hopeless overall:      {weighted_rate(df, 'q26', [1]):.3f}   (published: 0.397)")
     print(f"Sad/hopeless by sex:       {weighted_rate_by(df, 'q26', [1], 'q2', SEX_MAP)}   (published: female~0.53, male~0.28)")
@@ -164,8 +177,8 @@ def main():
     print(f"Ever marijuana overall:    {weighted_rate(df, 'q46', [2,3,4,5,6,7]):.3f}   (published: 0.295)")
     print(f"Current alcohol overall:   {weighted_rate(df, 'q42', [2,3,4,5,6,7]):.3f}   (published: ~0.223)")
 
-    # --- REAL conditional rates for the dependency chain, broken out by sex ---
-    print("\n=== REAL conditional rates, by sex (replacing guessed multipliers) ===")
+    # REAL conditional rates for the dependency chain, broken out by sex 
+    print("\n=== REAL conditional rates, by sex ===")
 
     pairs = [
         ("poor_mh given sad",      "q84", [4,5], "q26", [1]),

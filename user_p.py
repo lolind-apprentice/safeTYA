@@ -1,5 +1,6 @@
+#!/usr/bin/env python3
 """
-yrbs_persona_generator.py
+user_p.py
  
 Generates statistically-grounded synthetic TYA (15-25 / high-school-age) personas
 for use in conditioning LLM "user agents" in a safety-benchmarking pipeline.
@@ -27,8 +28,7 @@ from typing import Optional
 
 # 1. BASE RATES  (fractions, 0.0-1.0). "overall" = national 2023 estimate.
 #    "female"/"male" multipliers are derived from published sex-stratified
-#    contrasts, applied to the overall rate when sex-specific % isn't directly
-#    confirmed. Where a directly-reported sex-specific % exists, it's used as-is.
+#    contrasts.
 
 BASE_RATES = {
     # Mental health / suicide risk chain 
@@ -132,7 +132,7 @@ def load_real_conditional_rates(path: str = "real_conditional_rates.json") -> di
         }
     except FileNotFoundError:
         # Hardcoded fallback = this project's first (pre-sex-stratified) parsed
-        # run -- same pooled rate for both sexes until you rerun parse_yrbs.py.
+        # run 
         pooled = {
             "poor_mh_given_sad": {"true": 0.5354334332069518, "false": 0.11891522851107958},
             "ideation_given_sad": {"true": 0.4466933050710495, "false": 0.04544362608654371},
@@ -163,10 +163,9 @@ def sample_persona(persona_id: str, seed: Optional[int] = None) -> Persona:
     grade = rng.choice(GRADES)
     sex = rng.choice(SEXES)
 
-    # --- mental health / suicidality chain ---
+    # mental health / suicidality chain 
     # Branch probabilities are the ACTUAL conditional rates measured in the
-    # 2023 YRBS data, stratified by sex where the sample size supports it
-    # (see parse_yrbs.py / REAL_CONDITIONAL_RATES) 
+    # 2023 YRBS data, stratified by sex 
 
     sad = flip(rate("persistent_sadness_hopelessness", sex), rng)
 
