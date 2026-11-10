@@ -2,7 +2,7 @@
 Downloads both OP-R1/OP-Reddit-User and OP-R1/OP-Reddit-Post datasets locally.
 
 Usage:
-    py download_dataset.py
+    python download_dataset.py
 """
 from pathlib import Path
 from huggingface_hub import snapshot_download
