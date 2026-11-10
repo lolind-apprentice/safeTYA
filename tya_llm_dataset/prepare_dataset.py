@@ -1,3 +1,9 @@
+"""
+Processes LMSYS, ShareChat, and WildChat datasets to extract English user messages.
+
+Usage:
+    python prepare_dataset.py
+"""
 import json
 from pathlib import Path
 from datasets import load_dataset
