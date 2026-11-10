@@ -1,4 +1,5 @@
-"""Retrieve one OP-R1 user's nested record without downloading the corpus.
+"""
+Retrieve one OP-R1 user's nested record without downloading the corpus.
 This final access stage joins the indexes produced by ``reshard_posts`` with
 the nested records produced by ``user_threads_to_parquet``.
 
