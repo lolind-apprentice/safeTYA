@@ -3,7 +3,7 @@ Performs a local DuckDB JOIN between OP-Reddit-User and OP-Reddit-Post
 on user_id to output fully hydrated JSONL records in seconds.
 
 Usage: 
-    py fetch_users_local.py --n [MAX number] --seed [number] --out [filename]
+    python fetch_users_local.py [--n N] [--seed SEED] [--user-dir USER_DIR] [--post-dir POST_DIR] [--out OUT]
 """
 import argparse
 from pathlib import Path
