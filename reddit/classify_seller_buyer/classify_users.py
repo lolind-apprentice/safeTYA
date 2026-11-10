@@ -2,7 +2,7 @@
 (Jev version): Label each user with Jev through OpenRouter's System One API.
 
 Usage:
-    py classify_users.py --inp normalized.jsonl --out labeled.jsonl --concurrency 32 --limit 0
+    python classify_users.py --inp INP --out OUT [--concurrency CONCURRENCY] [--limit LIMIT]
 """
 import argparse
 import asyncio
