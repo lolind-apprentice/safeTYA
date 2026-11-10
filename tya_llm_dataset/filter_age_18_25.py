@@ -1,18 +1,9 @@
 """
-Filter JSONL prompt datasets for explicit textual clues that the writer may be
-18–25 years old, processing every .jsonl file in an input folder recursively.
+Filter JSONL prompt datasets for explicit textual clues that the writer is 18–25 years old.
+This uses keyword/regex pattern matching only. It does NOT determine a person's actual age. Slang, informal language, and vague style clues are intentionally excluded. 
 
-The output folder is named <input-folder-name>_tya by default. The relative
-directory structure is preserved, and each output filename gets a _tya suffix.
-
-Examples:
-  python filter_18_25.py --input-folder processed_data
-  python filter_18_25.py --input-folder processed_data --output-folder processed_data_tya
-  python filter_18_25.py --input-folder data --include-life-stage
-
-This uses keyword/regex pattern matching only. It does NOT determine a person's
-actual age. Slang, informal language, and vague style clues are intentionally
-excluded. 
+Usage:
+    python filter_18_25.py --input-folder INPUT_FOLDER [--output-folder OUTPUT_FOLDER] [--text-key TEXT_KEY] [--include-life-stage]
 """
 
 import argparse
