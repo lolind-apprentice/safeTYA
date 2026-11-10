@@ -3,7 +3,7 @@
 Optimized with multi-threading to speed up remote Parquet reads over Hugging Face HTTP streams.
 
 Usage:
-    py fetch_json_records.py --n 1000 --seed 42 --out raw_users.jsonl --no-context --workers 16
+    py fetch_json_records.py --n 1000 --seed 42 --out raw_users.jsonl --workers 16
 """
 import argparse
 import json
@@ -64,13 +64,13 @@ def main():
     p.add_argument("--n", type=int, default=1000)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--out", type=Path, default=Path("raw_users.jsonl"))
+    # defaults to skipping context. 
+    # Pass --with-context on CLI only if you need full thread trees.
     p.add_argument(
-        "--no-context",
-        action="store_true",
-        default=True,
-        help="Skip parent/reply context for maximum fetch speed",
+        "--with-context", 
+        action="store_true", 
+        help="Fetch full parent/reply thread context (slower)"
     )
-    p.add_argument("--with-context", action="store_false", dest="no_context")
     p.add_argument(
         "--workers",
         type=int,
@@ -93,7 +93,7 @@ def main():
     ids_to_fetch = [uid for uid in ids if uid not in done]
     print(
         f"Fetching {len(ids_to_fetch)} users with {args.workers} worker threads "
-        f"(with_context={not args.no_context})...",
+        f"(with_context={args.with_context})...",
         file=sys.stderr,
     )
 
@@ -104,7 +104,7 @@ def main():
         with ThreadPoolExecutor(max_workers=args.workers) as executor:
             futures = {
                 executor.submit(
-                    fetch_single_user, r, uid, not args.no_context
+                    fetch_single_user, r, uid, args.with_context
                 ): uid
                 for uid in ids_to_fetch
             }
