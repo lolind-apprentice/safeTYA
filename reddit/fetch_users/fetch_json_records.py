@@ -3,7 +3,7 @@
 Optimized with multi-threading to speed up remote Parquet reads over Hugging Face HTTP streams.
 
 Usage:
-    py fetch_json.py --n 1000 --seed 42 --out raw_users.jsonl --no-context --workers 16
+    py fetch_json_records.py --n 1000 --seed 42 --out raw_users.jsonl --no-context --workers 16
 """
 import argparse
 import json
