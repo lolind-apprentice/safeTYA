@@ -1,5 +1,5 @@
-"""Step 1: Pick N random users and save their FULL retrieve output (one JSON per line).
-
+"""
+Pick N random users and save their FULL retrieve output (one JSON per line).
 Optimized with multi-threading to speed up remote Parquet reads over Hugging Face HTTP streams.
 
 Usage:
