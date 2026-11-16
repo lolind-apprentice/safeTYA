@@ -3,6 +3,10 @@ Processes LMSYS, ShareChat, and WildChat datasets to extract English user messag
 
 Usage:
     python prepare_dataset.py
+
+Requirements:
+    pip install fasttext-wheel 
+
 """
 import json
 from pathlib import Path
