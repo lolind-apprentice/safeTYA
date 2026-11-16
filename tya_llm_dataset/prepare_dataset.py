@@ -1,19 +1,27 @@
 """
-Processes LMSYS, ShareChat, and WildChat datasets to extract English user messages.
-
-Usage:
-    python prepare_dataset.py
+Processes LLM prompt datasets to extract English user messages.
 
 Requirements:
     pip install fasttext-wheel 
+    curl -L -o lid.176.ftz https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.ftz
+    pip install "numpy<2"
 
+Usage examples:
+    python prepare_dataset.py                      # run everything
+    python prepare_dataset.py sharechat            # all 5 ShareChat platforms
+    python prepare_dataset.py sharechat:claude     # one ShareChat platform
+    python prepare_dataset.py lmsys wildchat       # any combination
+    python prepare_dataset.py --list               # show available names
+    python prepare_dataset.py sharechat            --workers 2
 """
+import argparse
 import json
 from pathlib import Path
 from datasets import load_dataset
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import re
 import fasttext
+from huggingface_hub import hf_hub_download, list_repo_files
 
 _LID = None  # loaded lazily so each worker process gets its own copy
 
@@ -24,7 +32,7 @@ OUT.mkdir(parents=True, exist_ok=True)
 # Uses your saved `hf auth login` credentials.
 TOKEN = True
 LIMIT = 100_000_000  # effectively "no limit"
-SHARECHAT_LIMIT = 8_000  # per platform
+SHARECHAT_PLATFORMS = ["claude", "chatgpt", "perplexity", "gemini", "grok"]
 
 # --------------------------------------------------
 # Helper functions
@@ -182,9 +190,23 @@ def iter_arena(ds):
 # Keep the user side of conversation for each English row.
 # --------------------------------------------------
 
-def iter_sharegpt(ds):
+
+def iter_sharegpt_rows():
+    files = [f for f in list_repo_files("RyokoAI/ShareGPT52K", repo_type="dataset")
+             if f.startswith("sg_90k_part") and f.endswith(".json")
+             and "html_cleaned" not in f]
+    print("ShareGPT files:", files)
+    for fname in sorted(files):
+        path = hf_hub_download("RyokoAI/ShareGPT52K", fname, repo_type="dataset")
+        print(f"Reading {fname} ...")
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)          # list of {"id", "conversations"}
+        for row in data:
+            yield row
+        del data
+def iter_sharegpt():
     print("\nLoading ShareGPT52K...")
-    for row in ds:
+    for row in iter_sharegpt_rows():
         convo = row.get("conversations")
         if not isinstance(convo, list):
             continue
@@ -199,10 +221,7 @@ def iter_sharegpt(ds):
             continue
         if not looks_english(" ".join(prompts)):
             continue
-        yield {
-            "id": row.get("id"),
-            "prompts": prompts,
-        }
+        yield {"id": row.get("id"), "prompts": prompts}
 
 # --------------------------------------------------
 # Run all dataset jobs
@@ -213,7 +232,7 @@ def process_lmsys(limit=LIMIT):
     stream_to_jsonl(OUT / "lmsys_english_user_only.jsonl",
                     iter_lmsys(ds), limit, "LMSYS")
 
-def process_sharechat(platform, limit=SHARECHAT_LIMIT):
+def process_sharechat(platform, limit=LIMIT):
     ds = load_stream("tucnguyen/ShareChat", platform)
     stream_to_jsonl(OUT / f"sharechat_{platform}_english_user.jsonl",
                     iter_sharechat(ds), limit, f"ShareChat/{platform}")
@@ -229,26 +248,69 @@ def process_arena(limit=LIMIT):
     ds = load_stream("lmsys/chatbot_arena_conversations")
     stream_to_jsonl(OUT / "arena_english_user_only.jsonl",
                     iter_arena(ds), limit, "Arena")
-
-
-
+    
 def process_sharegpt(limit=LIMIT):
-    ds = load_stream("RyokoAI/ShareGPT52K")
     stream_to_jsonl(OUT / "sharegpt_english_user_only.jsonl",
-                    iter_sharegpt(ds), limit, "ShareGPT")
-        
+                    iter_sharegpt(), limit, "ShareGPT")
 
-def run_jobs():
-    jobs = [
-        (process_lmsys, ()),
-        (process_arena, ()),
-        (process_wildchat, ()),
-        (process_sharegpt, ()),
-    ]
-    jobs += [(process_sharechat, (p,))
-             for p in ["claude", "chatgpt", "perplexity", "gemini", "grok"]]
+# --------------------------------------------------
+# Job selection
+# --------------------------------------------------
 
-    with ProcessPoolExecutor(max_workers=4) as pool:
+SIMPLE_JOBS = {
+    "lmsys": process_lmsys,
+    "arena": process_arena,
+    "wildchat": process_wildchat,
+    "sharegpt": process_sharegpt,
+}
+
+
+def available_names():
+    return (list(SIMPLE_JOBS) + ["sharechat"]
+            + [f"sharechat:{p}" for p in SHARECHAT_PLATFORMS])
+
+
+def build_jobs(names):
+    """Turn names like 'lmsys', 'sharechat', 'sharechat:claude' into jobs."""
+    if not names:                                   # no args = everything
+        names = list(SIMPLE_JOBS) + ["sharechat"]
+
+    jobs, seen = [], set()
+
+    def add(fn, args=()):
+        key = (fn.__name__, args)
+        if key not in seen:                         # ignore duplicates
+            seen.add(key)
+            jobs.append((fn, args))
+
+    for name in names:
+        name = name.lower()
+        if name in SIMPLE_JOBS:
+            add(SIMPLE_JOBS[name])
+        elif name == "sharechat":
+            for p in SHARECHAT_PLATFORMS:
+                add(process_sharechat, (p,))
+        elif name.startswith("sharechat:"):
+            platform = name.split(":", 1)[1]
+            if platform not in SHARECHAT_PLATFORMS:
+                raise SystemExit(f"Unknown ShareChat platform '{platform}'. "
+                                 f"Choose from: {', '.join(SHARECHAT_PLATFORMS)}")
+            add(process_sharechat, (platform,))
+        else:
+            raise SystemExit(f"Unknown dataset '{name}'. "
+                             f"Available: {', '.join(available_names())}")
+    return jobs
+
+def run_jobs(jobs, workers):
+    if len(jobs) == 1 or workers == 1:              # no pool needed
+        for fn, args in jobs:
+            try:
+                fn(*args)
+            except Exception as e:
+                print(f"FAILED {fn.__name__}{args}: {e!r}")
+        return
+
+    with ProcessPoolExecutor(max_workers=workers) as pool:
         futures = {pool.submit(fn, *args): (fn.__name__, args)
                    for fn, args in jobs}
         for fut in as_completed(futures):
@@ -258,7 +320,22 @@ def run_jobs():
             except Exception as e:
                 print(f"FAILED {name}{args}: {e!r}")
 
-
 if __name__ == "__main__":
-    run_jobs()
+    parser = argparse.ArgumentParser(description="Build user-prompt datasets.")
+    parser.add_argument("datasets", nargs="*",
+                        help="which to run (default: all). "
+                             f"Options: {', '.join(available_names())}")
+    parser.add_argument("--workers", type=int, default=4,
+                        help="parallel processes (default 4)")
+    parser.add_argument("--list", action="store_true",
+                        help="print available dataset names and exit")
+    cli = parser.parse_args()
+
+    if cli.list:
+        print("\n".join(available_names()))
+        raise SystemExit(0)
+
+    selected = build_jobs(cli.datasets)
+    print("Running:", ", ".join(f"{fn.__name__}{args}" for fn, args in selected))
+    run_jobs(selected, cli.workers)
     print(f"\nFinished. Output files are in {OUT}/")
